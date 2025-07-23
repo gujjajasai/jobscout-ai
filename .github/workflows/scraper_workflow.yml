@@ -1,9 +1,15 @@
 name: Run Job Scraper
 
+# --- MODIFIED: ADD THE 'PUSH' TRIGGER ---
 on:
+  push:
+    branches:
+      - main  # Run this workflow every time code is pushed to the main branch
+  
   schedule:
     # This is a CRON schedule that runs at the top of every hour.
     - cron: '0 * * * *'
+    
   workflow_dispatch:
     # This adds a button to manually run the workflow from the Actions tab.
 
@@ -25,7 +31,7 @@ jobs:
 
       - name: Run the main scraper engine
         env:
-          # This securely loads the secrets we just created.
+          # This securely loads the secrets we created in GitHub Settings.
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
