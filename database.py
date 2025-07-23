@@ -4,17 +4,16 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# Load the secret keys from our .env file
+# Load environment variables from .env file
 load_dotenv()
 
-# --- Database Initialization ---
 def init_db_client():
     """Initializes and returns the Supabase client."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     
     if not url or not key:
-        print("[ERROR] Supabase URL or Key not found. Make sure .env file is set up correctly.")
+        print("[ERROR] Supabase URL or Key not found in .env file.")
         return None
         
     try:
@@ -25,42 +24,53 @@ def init_db_client():
         print(f"[ERROR] Failed to initialize database client: {e}")
         return None
 
-# --- Data Saving Logic ---
 def save_jobs(client: Client, jobs: list):
-    """Saves a list of job dictionaries to the Supabase 'jobs' table."""
+    """
+    Saves a list of job dictionaries to the Supabase 'jobs' table,
+    now including company and description details.
+    """
     if not client or not jobs:
         return
 
     print(f"  -> Attempting to save {len(jobs)} jobs to the database...")
     
-    # We need to make sure our job dictionary keys match the database column names exactly.
-    # Let's create a list of dictionaries that are cleaned and ready for insertion.
     records_to_insert = []
     for job in jobs:
+        # --- UPGRADED RECORD DICTIONARY ---
+        # This now includes all the new fields to match our upgraded database table.
+        # We use .get() to safely handle cases where a field might be missing.
         record = {
             "title": job.get("title"),
             "link": job.get("link"),
             "published_date": job.get("published_date"),
-            "source": job.get("source")
+            "source": job.get("source"),
+            "company": job.get("company"),
+            "description": job.get("description"),
+            "job_role": job.get("job_role"), # New field
+            "experience_level": job.get("experience_level") # New field
+            # The 'location' field will mostly be NULL for RSS feeds, which is fine.
         }
-        records_to_insert.append(record)
+        # We only process jobs that have a valid link.
+        if record["link"]:
+            records_to_insert.append(record)
+
+    # If there are no valid records to insert, we can stop here.
+    if not records_to_insert:
+        print("  -> No valid jobs with links to save.")
+        return
 
     try:
-        # The 'upsert' command will INSERT new jobs. If a job with the same 'link'
-        # (our unique column) already exists, it will be ignored.
-        # This elegantly handles duplicates.
+        # The 'upsert' command is the core of our logic. It will INSERT new jobs.
+        # If a job with the same 'link' (our unique column) already exists,
+        # the database will simply ignore it, preventing duplicates.
         response = client.table('jobs').upsert(records_to_insert, on_conflict='link').execute()
         
-        # Supabase v2 returns a response with a 'data' attribute
         if response.data:
             num_saved = len(response.data)
-            # We can estimate duplicates by comparing the number of jobs we sent
-            # with the number of jobs that were actually inserted.
-            num_duplicates = len(jobs) - num_saved
+            num_duplicates = len(records_to_insert) - num_saved
             print(f"  -> 🎉 Success! Saved {num_saved} new jobs. Skipped {num_duplicates} duplicates.")
         else:
-            # This can happen if all jobs were duplicates.
-            print("  -> No new jobs to save. All entries were duplicates.")
-
+            print("  -> No new jobs to save. All entries were likely duplicates.")
+            
     except Exception as e:
         print(f"  [ERROR] Could not save jobs to database: {e}")
