@@ -1,0 +1,32 @@
+name: Run Job Scraper
+
+on:
+  schedule:
+    # This is a CRON schedule that runs at the top of every hour.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    # This adds a button to manually run the workflow from the Actions tab.
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run the main scraper engine
+        env:
+          # This securely loads the secrets we just created.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python main.py
